@@ -1,24 +1,24 @@
 from flask import Flask,jsonify,request
 from flask_sqlalchemy import SQLAlchemy 
 from flask_bcrypt import Bcrypt
-#from werkzeug.security import check_password_hash, generate_password_hash
 import validators
 import re
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, create_refresh_token, get_jwt_identity
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '5791628bb0b13ce0c676dfde280ba245'
 
-pg_user = "postgres"
-pg_pwd = "password"
-pg_port = "5432"
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://{username}:{password}@localhost:{port}/flasksql".format(username=pg_user, password=pg_pwd, port=pg_port)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv('DATABASE_URL')
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
-JWT_SECRET_KEY = 'JWT_SECRET_KEY'
-JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
+
+JWT_SECRET_KEY = os.getenv('key')
 JWTManager(app)
 
 class User(db.Model):
@@ -32,7 +32,7 @@ class User(db.Model):
 def index():
     return "hello world"
 
-@app.post("/register")
+@app.post("/signup")
 def register():
     username = request.json['username']
     email = request.json['email']
@@ -77,7 +77,7 @@ def register():
     })
 
 
-@app.post("/login")
+@app.post("/signin")
 def login():
     email = request.json['email']
     password = request.json['password']
@@ -102,7 +102,7 @@ def login():
             "error":"Login Unsuccessful. Please check username and password"
         })
 
-@app.get("/home")
+@app.get("/dashboard")
 @jwt_required()
 def home():
     user_id = get_jwt_identity()
@@ -123,14 +123,67 @@ def refresh_user_token():
         "access" : access
     })
 
-@app.put("/change the user credentials")
-def change_user_credentials():
+@app.put("/users/<id>")
+@jwt_required()
+def change_user_credentials(id):
     user_id = get_jwt_identity()
     user = User.query.filter_by(id = user_id).first()
-    username = request.json['username']
-    email = request.json['email']
-    password = request.json['password']
-    user = User(username=username,email=email,password=pwd_hash)
+    if user:
+        user.username = request.json['username']
+        user.email = request.json['email']
+        user.password = bcrypt.generate_password_hash(request.json['password']).decode('utf-8')
+
+        db.session.add(user)
+        db.session.commit()
+
+        return jsonify({
+            "message" : f"The user {user.username} successfully updated"
+        })
+    else:
+        return jsonify({
+            "error" : "Invalid user credentials"
+        })
+
+
+@app.delete("/users/<id>")
+@jwt_required()
+def remove_user(id):
+    user_id = get_jwt_identity()
+    user = User.query.filter_by(id = user_id).first()
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({
+            "message" : f"The user {user.username} successfully deleted"
+        })
+    else:
+        return jsonify({
+            "error" : "Invalid user credentials"
+        })
+
+@app.patch("/users/<id>")
+@jwt_required()
+def patch_user(id):
+    user_id = get_jwt_identity()
+    user = User.query.filter_by(id = user_id).first()
+    if user:
+
+        if 'username' in request.json:
+            user.username = request.json['username']
+        if 'email' in request.json:
+            user.email = request.json['email']
+        if 'password' in request.json:
+            user.password = bcrypt.generate_password_hash(request.json['password']).decode('utf-8')
+
+        db.session.commit()
+        return jsonify({
+            "message" : f"The user {user.username} successfully updated"
+        })
+    else:
+        return jsonify({
+            "error" : "Invalid user credentials"
+        })
+
 
 if __name__ == '__main__':
     app.app_context().push()

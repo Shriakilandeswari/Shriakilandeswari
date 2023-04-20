@@ -189,6 +189,7 @@ if __name__ == '__main__':
     app.app_context().push()
     db.create_all()
     app.run(debug=True)
+<<<<<<< HEAD
     
     
     
@@ -230,3 +231,5 @@ def addUser():
         return jsonify({
             "error" : "You are not a valid user to access this page"
         })
+=======
+>>>>>>> 34a82355997ea7f1c6bddee16353616faa7a8a92
